@@ -6,36 +6,37 @@ use std::{
 use phf::phf_map;
 
 #[derive(Clone, Debug)]
-pub enum ExtendedChars {
+pub enum ExtendedChar {
     Partial,
     Byte(u8),
+    AltByte(u8),
     Char(char),
-    CharString(String),
-    AltChar(char),
-    CtrlChar(char),
-    CtrlAltChar(char),
-    Normal(SpecialChars),
-    Shift(SpecialChars),
-    Alt(SpecialChars),
-    Ctrl(SpecialChars),
-    ShiftAlt(SpecialChars),
-    CtrlShift(SpecialChars),
-    CtrlAlt(SpecialChars),
-    CtrlShiftAlt(SpecialChars),
-    ExtendedString(Vec<ExtendedChars>),
-    Quit,
+    Normal(SpecialChar),
+    Shift(SpecialChar),
+    Alt(SpecialChar),
+    Ctrl(SpecialChar),
+    ShiftAlt(SpecialChar),
+    CtrlShift(SpecialChar),
+    CtrlAlt(SpecialChar),
+    CtrlShiftAlt(SpecialChar),
 }
 
-impl Display for ExtendedChars {
+impl Display for ExtendedChar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Partial => { write!(f, "<Partial>") },
-            Byte(b) => { write!(f, "<{:#X}>", b) },
-            Char(c) => { write!(f, "{}", c) },
-            CharString(s) => { write!(f, "{}", s) },
-            CtrlChar(c) => { write!(f, "<Ctrl-{}>", c) },
-            AltChar(c) => { write!(f, "<Alt-{}>", c) },
-            CtrlAltChar(c) => { write!(f, "<Ctrl-Alt-{}>", c) },
+            Byte(b) => {
+                if (0x20 <= *b) && (0x7E >= *b)
+                  || (0xAE <= *b)
+                  || (0xA1 <= *b) && (0xAC >= *b) {
+                    write!(f, "{}", char::from(*b))
+                }
+                else {
+                    write!(f, "<{}>", U8_TO_PRINT[*b as usize])
+                }
+            },
+            AltByte(b) => { write!(f, "<Alt-{}>", U8_TO_PRINT[*b as usize]) },
+            Char(c) => { write!(f, "{:?}", c) },
             Normal(e) => { write!(f, "<{:?}>", e) },
             Shift(e) => { write!(f, "<Shift-{:?}>", e) },
             Alt(e) => { write!(f, "<Alt-{:?}>", e) },
@@ -44,23 +45,14 @@ impl Display for ExtendedChars {
             CtrlShift(e) => { write!(f, "<Ctrl-Shift-{:?}>", e) },
             CtrlAlt(e) => { write!(f, "<Ctrl-Alt-{:?}>", e) },
             CtrlShiftAlt(e) => { write!(f, "<Ctrl-Shift-Alt-{:?}>", e) },
-            ExtendedString(es) => {
-                for e in es.into_iter() {
-                    write!(f, "{}", e)?;
-                }
-                Ok(())
-            },
-            Quit => { write!(f, "<Quit>") },
         }
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum SpecialChars {
-    Nul,
+pub enum SpecialChar {
     Backspace,
     Tab,
-    Escape,
     Delete,
     Insert,
     Home,
@@ -85,13 +77,10 @@ pub enum SpecialChars {
     F12,
 }
 
-use SpecialChars::*;
-use ExtendedChars::*;
-pub static CHAR_CODES: phf::Map<&'static str, ExtendedChars> = phf_map! {
-    "\x00" => Normal(Nul),
-    "\x09" => Normal(Tab),
+use SpecialChar::*;
+use ExtendedChar::*;
+pub static CHAR_CODES: phf::Map<&'static str, ExtendedChar> = phf_map! {
     "\x1b" => Partial,
-    "\x1b\t" => Alt(Tab),
     "\x1bO" => Partial,
     "\x1bOP" => Normal(F1),
     "\x1bOQ" => Normal(F2),
@@ -389,8 +378,6 @@ pub static CHAR_CODES: phf::Map<&'static str, ExtendedChars> = phf_map! {
     "\x1b[C" => Normal(RightArrow),
     "\x1b[D" => Normal(LeftArrow),
     "\x1b[Z" => Shift(Tab),
-    "\x1b\x7f" => Alt(Backspace),
-    "\x7f" => Normal(Backspace),
     // MacOS Specific Encodings
     "\x1b\x1b" => Partial,
     "\x1b\x1b[" => Partial,
@@ -402,12 +389,12 @@ pub static CHAR_CODES: phf::Map<&'static str, ExtendedChars> = phf_map! {
     "\x1b[H" => Normal(Home),
 };
 
-/*
 static U8_TO_PRINT: [&'static str; 256] = [
-    "<CTRL-@>", "<CTRL-A>", "<CTRL-B>", "<CTRL-C>", "<CTRL-D>", "<CTRL-E>", "<CTRL-F>", "<CTRL-G>",
-    "<CTRL-H>", "<CTRL-I>", "<CTRL-J>", "<CTRL-K>", "<CTRL-L>", "<CTRL-M>", "<CTRL-N>", "<CTRL-O>",
-    "<CTRL-P>", "<CTRL-Q>", "<CTRL-R>", "<CTRL-S>", "<CTRL-T>", "<CTRL-U>", "<CTRL-V>", "<CTRL-W>",
-    "<CTRL-X>", "<CTRL-Y>", "<CTRL-Z>", "<ESC>", "<CTRL-\\>", "<CTRL-]>", "<CTRL-^>", "<CTRL-_>",
+    "NUL", "Ctrl-A", "Ctrl-B", "Ctrl-C", "Ctrl-D", "Ctrl-E", "Ctrl-F", "Ctrl-G",
+    "Ctrl-H", "Tab", "Ctrl-J", "Ctrl-K", "Ctrl-L", "Ctrl-M", "Ctrl-N", "Ctrl-O",
+    "Ctrl-P", "Ctrl-Q", "Ctrl-R", "Ctrl-S", "Ctrl-T", "Ctrl-U", "Ctrl-V", "Ctrl-W",
+    "Ctrl-X", "Ctrl-Y", "Ctrl-Z", "ESC", "Ctrl-\\", "Ctrl-]", "Ctrl-^", "Ctrl-_",
+    // These are all printable characters that I don't want to manually enter
     "\x20", "\x21", "\x22", "\x23", "\x24", "\x25", "\x26", "\x27",
     "\x28", "\x29", "\x2a", "\x2b", "\x2c", "\x2d", "\x2e", "\x2f",
     "\x30", "\x31", "\x32", "\x33", "\x34", "\x35", "\x36", "\x37",
@@ -419,109 +406,81 @@ static U8_TO_PRINT: [&'static str; 256] = [
     "\x60", "\x61", "\x62", "\x63", "\x64", "\x65", "\x66", "\x67",
     "\x68", "\x69", "\x6a", "\x6b", "\x6c", "\x6d", "\x6e", "\x6f",
     "\x70", "\x71", "\x72", "\x73", "\x74", "\x75", "\x76", "\x77",
-    "\x78", "\x79", "\x7a", "\x7b", "\x7c", "\x7d", "\x7e", "<DEL>",
-    "<80>", "<81>", "<82>", "<83>", "<84>", "<85>", "<86>", "<87>",
-    "<88>", "<89>", "<8A>", "<8B>", "<8C>", "<8D>", "<8E>", "<8F>",
-    "<90>", "<91>", "<92>", "<93>", "<94>", "<95>", "<96>", "<97>",
-    "<98>", "<99>", "<9A>", "<9B>", "<9C>", "<9D>", "<9E>", "<9F>",
-    "<A0>", "<A1>", "<A2>", "<A3>", "<A4>", "<A5>", "<A6>", "<A7>",
-    "<A8>", "<A9>", "<AA>", "<AB>", "<AC>", "<AD>", "<AE>", "<AF>",
-    "<B0>", "<B1>", "<B2>", "<B3>", "<B4>", "<B5>", "<B6>", "<B7>",
-    "<B8>", "<B9>", "<BA>", "<BB>", "<BC>", "<BD>", "<BE>", "<BF>",
-    "<C0>", "<C1>", "<C2>", "<C3>", "<C4>", "<C5>", "<C6>", "<C7>",
-    "<C8>", "<C9>", "<CA>", "<CB>", "<CC>", "<CD>", "<CE>", "<CF>",
-    "<D0>", "<D1>", "<D2>", "<D3>", "<D4>", "<D5>", "<D6>", "<D7>",
-    "<D8>", "<D9>", "<DA>", "<DB>", "<DC>", "<DD>", "<DE>", "<DF>",
-    "<E0>", "<E1>", "<E2>", "<E3>", "<E4>", "<E5>", "<E6>", "<E7>",
-    "<E8>", "<E9>", "<EA>", "<EB>", "<EC>", "<ED>", "<EE>", "<EF>",
-    "<F0>", "<F1>", "<F2>", "<F3>", "<F4>", "<F5>", "<F6>", "<F7>",
-    "<F8>", "<F9>", "<FA>", "<FB>", "<FC>", "<FD>", "<FE>", "<FF>",
+    "\x78", "\x79", "\x7a", "\x7b", "\x7c", "\x7d", "\x7e", "DEL",
+    "0x80", "0x81", "0x82", "0x83", "0x84", "0x85", "0x86", "0x87",
+    "0x88", "0x89", "0x8A", "0x8B", "0x8C", "0x8D", "0x8E", "0x8F",
+    "0x90", "0x91", "0x92", "0x93", "0x94", "0x95", "0x96", "0x97",
+    "0x98", "0x99", "0x9A", "0x9B", "0x9C", "0x9D", "0x9E", "0x9F",
+    "0xa0", "\u{a1}", "\u{a2}", "\u{a3}", "\u{a4}", "\u{a5}", "\u{a6}", "\u{a7}",
+    "\u{a8}", "\u{a9}", "\u{aa}", "\u{ab}", "\u{ac}", "0xAD", "\u{ae}", "\u{af}",
+    "\u{b0}", "\u{b1}", "\u{b2}", "\u{b3}", "\u{b4}", "\u{b5}", "\u{b6}", "\u{b7}",
+    "\u{b8}", "\u{b9}", "\u{ba}", "\u{bb}", "\u{bc}", "\u{bd}", "\u{be}", "\u{bf}",
+    "\u{c0}", "\u{c1}", "\u{c2}", "\u{c3}", "\u{c4}", "\u{c5}", "\u{c6}", "\u{c7}",
+    "\u{c8}", "\u{c9}", "\u{ca}", "\u{cb}", "\u{cc}", "\u{cd}", "\u{ce}", "\u{cf}",
+    "\u{d0}", "\u{d1}", "\u{d2}", "\u{d3}", "\u{d4}", "\u{d5}", "\u{d6}", "\u{d7}",
+    "\u{d8}", "\u{d9}", "\u{da}", "\u{db}", "\u{dc}", "\u{dd}", "\u{de}", "\u{df}",
+    "\u{e0}", "\u{e1}", "\u{e2}", "\u{e3}", "\u{e4}", "\u{e5}", "\u{e6}", "\u{e7}",
+    "\u{e8}", "\u{e9}", "\u{ea}", "\u{eb}", "\u{ec}", "\u{ed}", "\u{ee}", "\u{ef}",
+    "\u{f0}", "\u{f1}", "\u{f2}", "\u{f3}", "\u{f4}", "\u{f5}", "\u{f6}", "\u{f7}",
+    "\u{f8}", "\u{f9}", "\u{fa}", "\u{fb}", "\u{fc}", "\u{fd}", "\u{fe}", "\u{ff}",
 ];
-*/
 
-pub fn encode_extended_string(s: &str) -> ExtendedChars {
+pub fn encode_extended_string(v: &[u8]) -> Vec<ExtendedChar> {
     // First, check to see if there are any control characters in the string
-    let mut temp_str = String::new();
-    let mut ext_str: Vec<ExtendedChars> = Vec::new();
+    let mut ext_str: Vec<ExtendedChar> = Vec::new();
     let mut escape_last = false;
-    for c in s.chars() {
-        if c.is_ascii_control() {
-            if '\x1b' == c {
+    match String::from_utf8(v.to_vec()) {
+        Ok(parse_buf) => {
+            for c in parse_buf.chars() {
                 if escape_last {
-                    ext_str.push(Alt(Escape));
-                    escape_last = false;
-                }
-                else {
-                    if !temp_str.is_empty() {
-                        ext_str.push(CharString(temp_str.clone()));
-                        temp_str.clear();
-                    }
-                    escape_last = true;
-                }
-            }
-            else  {
-                let mut b = [0; 1];
-                c.encode_utf8(&mut b);
-                let special = if 0x20 > b[0] {
-                    b[0] += b'@';
-                    if escape_last {
-                        escape_last = false;
-                        CtrlAltChar(char::from(b[0]))
+                    if '\u{ff}' >= c {
+                        ext_str.push(AltByte(c as u8));
                     }
                     else {
-                        CtrlChar(char::from(b[0]))
+                        ext_str.push(Byte(0x1b));
+                        ext_str.push(Char(c));
                     }
+                    escape_last = false;
+                }
+                else if '\x1b' == c {
+                    escape_last = true;
+                }
+                else if '\u{ff}' >= c {
+                    ext_str.push(Byte(c as u8));
                 }
                 else {
-                    if escape_last {
-                        ext_str.push(Normal(Escape));
-                        escape_last = false;
-                    }
-                    Byte(b[0])
-                };
-                if !temp_str.is_empty() {
-                    ext_str.push(CharString(temp_str.clone()));
-                    temp_str.clear();
+                    ext_str.push(Char(c));
                 }
-                ext_str.push(special);
-            };
-        }
-        else {
-            if escape_last {
-                ext_str.push(AltChar(c));
-                escape_last = false;
             }
-            else {
-                temp_str.push(c);
+        },
+        Err(_) => {
+            for b in v {
+                if escape_last {
+                    ext_str.push(AltByte(*b));
+                    escape_last = false;
+                }
+                else if 0x1b == *b {
+                    escape_last = true;
+                }
+                else {
+                    ext_str.push(Byte(*b));
+                }
             }
-        }
+        },
     }
     if escape_last {
-        ext_str.push(Normal(Escape));
+        ext_str.push(Byte(0x1b));
     }
-    if ext_str.is_empty() {
-        CharString(temp_str)
-    }
-    else {
-        if !temp_str.is_empty() {
-            ext_str.push(CharString(temp_str));
-        }
-        if 1 == ext_str.len() {
-            ext_str.pop().unwrap()
-        }
-        else {
-            ExtendedString(ext_str)
-        }
-    }
+    ext_str
 }
 
-impl FromStr for ExtendedChars {
+impl FromStr for ExtendedChar {
     type Err = ParseMapError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match CHAR_CODES.get(s) {
             Some(t) => Ok(t.clone()),
-            None => Ok(encode_extended_string(s)),
+            None => Err(ParseMapError{kind: MapErrorKind::NotFound}),
         }
     }
 }
