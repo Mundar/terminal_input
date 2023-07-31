@@ -5,7 +5,7 @@ use std::{
 };
 use phf::phf_map;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum ExtendedChar {
     Partial,
     Byte(u8),
@@ -49,7 +49,7 @@ impl Display for ExtendedChar {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum SpecialChar {
     Backspace,
     Tab,
