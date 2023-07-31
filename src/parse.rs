@@ -5,7 +5,7 @@ use std::{
 };
 use phf::phf_map;
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum ExtendedChar {
     Partial,
     Byte(u8),
