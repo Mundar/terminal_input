@@ -112,7 +112,7 @@ pub fn check_quit_buffer(c: u8, buf: &mut Vec<u8>, seq: &[u8]) -> bool {
 static TIMEOUT: Duration = Duration::from_millis(100);
 pub fn user_handler<T: From<Option<ExtendedChar>>>(to_main: mpsc::Sender<T>, quit_sequence: &'static [u8]) {
     let (to_user, from_stdin) = mpsc::channel();
-    let stdin_quit = quit_sequence.clone();
+    let stdin_quit = quit_sequence;
     let stdin_thread = thread::spawn(move || {stdin_handler(to_user, &stdin_quit);});
     let mut quit_buf = Vec::new();
 
